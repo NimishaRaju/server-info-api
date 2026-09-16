@@ -1,0 +1,84 @@
+[
+    {
+        "server_name": "prod-app-server-04",
+        "server_id": "srv-9a8b7c6d-5e4f-3210",
+        "timestamp": "2026-09-15T08:21:00Z",
+        "status": "critical",
+        "metrics": {
+            "cpu_health": {
+                "status": "healthy",
+                "utilization_percentage": 88.2,
+                "core_count": 64
+            },
+            "memory_health": {
+                "status": "healthy",
+                "total_gb": 256,
+                "used_gb": 112.4,
+                "available_gb": 143.6
+            },
+            "disk_health": {
+                "status": "healthy",
+                "read_ops_sec": 1250,
+                "write_ops_sec": 840,
+                "storage_warning_triggered": false
+            },
+            "battery_health": {
+                "status": "healthy",
+                "type": "UPS / BBU",
+                "charge_percentage": 100.0,
+                "estimated_runtime_minutes": 45
+            },
+            "network_health": {
+                "status": "healthy",
+                "packet_loss_percentage": 0.0,
+                "latency_ms": 12.4
+            },
+            "panic_check": {
+                "kernel_panic_detected": false,
+                "last_panic_timestamp": null,
+                "error_logs_count": 0
+            },
+            "thermal_level_check": {
+                "status": "warning",
+                "current_temperature_celsius": 82.5,
+                "critical_threshold_celsius": 85.0,
+                "fan_speed_rpm": 4500
+            }
+        }
+    },
+    {
+        "server_name": "prod-web-01",
+        "server_id": "srv-4a86550d-f6e2-4bd4-b904-a45a7f77c65b",
+        "timestamp": "2026-09-15T07:58:48.460046Z",
+        "status": "healthy",
+        "metrics": {
+            "cpu_health": {
+                "status": "healthy",
+                "utilization_percentage": 0.0
+            },
+            "memory_health": {
+                "status": "healthy",
+                "used_gb": 0.0
+            },
+            "disk_health": {
+                "status": "healthy",
+                "storage_warning_triggered": false
+            },
+            "battery_health": {
+                "status": "healthy",
+                "charge_percentage": 100.0
+            },
+            "network_health": {
+                "status": "healthy",
+                "packet_loss_percentage": 0.0
+            },
+            "panic_check": {
+                "kernel_panic_detected": false
+            },
+            "thermal_level_check": {
+                "status": "healthy",
+                "current_temperature_celsius": 35.0
+            }
+        }
+    }
+]

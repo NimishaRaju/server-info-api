@@ -6,8 +6,8 @@
         "status": "critical",
         "metrics": {
             "cpu_health": {
-                "status": "healthy",
-                "utilization_percentage": 88.2,
+                "status": "warning",
+                "utilization_percentage": 95.7,
                 "core_count": 64
             },
             "memory_health": {

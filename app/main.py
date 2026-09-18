@@ -12,7 +12,7 @@ class CreateServer(BaseModel):
 
 class CPUhealthPatch(BaseModel):
     status: Optional[str]=None
-    health_utilization_percentage: Optional[float]=None
+    utilization_percentage: Optional[float]=None
     core_count: Optional[int]=None
     utilization: Optional[float]=None
 
@@ -39,6 +39,16 @@ class NetworkhealthPatch(BaseModel):
     packet_loss_percentage: Optional[float]=None
     latency_ms: Optional[float]=None
 
+class PanichealthPatch(BaseModel):
+    kernel_panic_detected: Optional[bool]=None
+    last_panic_timestamp: Optional[bool] = None
+    error_logs_count: Optional[int]=None
+
+class ThermalhealthPatch(BaseModel):
+    status: Optional[str]=None
+    current_temperature_celsius: Optional[float]=None
+    critical_threshold_celsius: Optional[float]=None
+    fan_speed_rpm: Optional[int]=None
 
 class MetricUpdate(BaseModel):
     cpu_health: Optional[CPUhealthPatch] = None
@@ -46,14 +56,16 @@ class MetricUpdate(BaseModel):
     disk_health: Optional[DiskhealthPatch]=None
     battery_health:Optional[BatteryhealthPatch]=None
     network_health: Optional[NetworkhealthPatch]=None
-    panic_check_kernel_panic_detected: Optional[bool]=None
-    panic_check_last_panic_timestamp: Optional[bool] = None
-    panic_check_error_logs_count: Optional[int]=None
-    thermal_level_check_status: Optional[str]=None
-    thermal_level_check_current_temperature_celsius: Optional[float]=None
-    thermal_level_check_critical_threshold_celsius: Optional[float]=None
-    thermal_level_check_fan_speed_rpm: Optional[int]=None
-    
+    panic_check: Optional[PanichealthPatch]=None
+    thermal_level_check: Optional[ThermalhealthPatch]=None
+
+class ServerMetricPatchRequest(BaseModel):
+    server_name: Optional[str] = None
+    server_id: Optional[str] = None
+    timestamp: Optional[str] = None
+    status: Optional[str] = None
+    metrics: Optional[MetricUpdate] = None
+
 @app.get('/health')
 def health():
     return {'status':"success"}
@@ -112,5 +124,54 @@ async def create_server(payload: CreateServer):
         "server_id": new_server["server_id"]
     }
 
-@app.patch("/api/servers/{server_id}/payload",status_code=status.HTTP_200_OK)
-async def update_server(payload:MetricUpdate):
+def deep_merge(target_dict: dict, source_dict: dict) -> dict:
+    for key, value in source_dict.items():
+        if key in target_dict and isinstance(target_dict[key], dict) and isinstance(value, dict):
+            deep_merge(target_dict[key], value)
+        else:
+            target_dict[key] = value
+    return target_dict
+
+@app.patch("/api/servers/{server_id}",status_code=status.HTTP_200_OK)
+def update_server(server_id: str,payload:ServerMetricPatchRequest):
+    """
+    HTTP PATCH Route. Targets the server by validating the path param
+    against the 'server_id' field inside the single-object JSON file.
+    """
+    FILE_PATH='servers.json'
+    if not os.path.exists(FILE_PATH):
+        raise HTTPException(status_code=404, detail="file not found.")
+
+   # Read the JSON file (which is a list of servers)
+    with open(FILE_PATH, "r") as file:
+        servers_list = json.load(file)  # This is a list []
+
+
+    # Find the specific server dictionary inside the list
+    target_server = None
+    for server in servers_list:
+        if server.get("server_id") == server_id:
+            target_server = server
+            break
+
+    # If no matching server_id was found in the list, raise a 404
+    if target_server is None:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Server with ID '{server_id}' not found in the file."
+        )
+
+    # Extract ONLY the fields the client explicitly sent
+    update_data = payload.model_dump(exclude_unset=True)
+
+    # Deep merge the partial updates into the found server object
+    deep_merge(target_server, update_data)
+
+    #  Save the entire updated list back to the file
+    with open(FILE_PATH, "w") as file:
+        json.dump(servers_list, file, indent=4)
+
+    return {
+        "message": f"Server '{server_id}' updated successfully", 
+        "updated_fields": list(update_data.keys())
+    }

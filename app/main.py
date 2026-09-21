@@ -5,8 +5,11 @@ from datetime import datetime
 import os
 from typing import Any, Dict, Optional
 import json 
+import logging
 app=FastAPI()
 
+logger = logging.getLogger("uvicorn.error")
+FILE_PATH="servers.json"
 class CreateServer(BaseModel):
     server_name: str
 
@@ -72,8 +75,7 @@ def health():
 
 @app.get('/api/servers')
 async def get_server():
-    file_path="servers.json"
-    with open(file_path, "r") as file:
+    with open(FILE_PATH, "r") as file:
         data = json.load(file)
     return data
 
@@ -99,8 +101,8 @@ async def create_server(payload: CreateServer):
     servers_list = []
 
     #  Read existing data if the file already exists
-    if os.path.exists('servers.json'):
-        with open('servers.json', "r") as file:
+    if os.path.exists(FILE_PATH):
+        with open(FILE_PATH, "r") as file:
             try:
                 servers_list = json.load(file)
                 # Ensure the file content is actually a list
@@ -114,7 +116,7 @@ async def create_server(payload: CreateServer):
     servers_list.append(new_server)
 
     # Write the updated list back to the JSON file
-    with open("servers.json", "w") as file:
+    with open(FILE_PATH, "w") as file:
         json.dump(servers_list, file, indent=4)
 
     # Return a custom success response to the client
@@ -138,7 +140,6 @@ def update_server(server_id: str,payload:ServerMetricPatchRequest):
     HTTP PATCH Route. Targets the server by validating the path param
     against the 'server_id' field inside the single-object JSON file.
     """
-    FILE_PATH='servers.json'
     if not os.path.exists(FILE_PATH):
         raise HTTPException(status_code=404, detail="file not found.")
 
@@ -175,3 +176,37 @@ def update_server(server_id: str,payload:ServerMetricPatchRequest):
         "message": f"Server '{server_id}' updated successfully", 
         "updated_fields": list(update_data.keys())
     }
+
+@app.delete("/api/servers/delete/{server_id}",status_code=status.HTTP_200_OK)
+def delete_server(server_id:str):
+    """
+    HTTP DELETE Route. Finds the server matching the path parameter
+    and removes it from the list inside the JSON file.
+    """
+    logger.info(f"🚀 ROUTE ACCESSED! Looking for ID: {server_id}")
+    if not os.path.exists(FILE_PATH):
+        raise HTTPException(status_code=404, detail="Database file not found.")
+
+    #  Read the JSON file list
+    with open(FILE_PATH, "r") as file:
+        servers_list = json.load(file)
+
+    # Track the initial count of servers
+    initial_length = len(servers_list)
+
+    # Filter out the server with the matching ID
+    # This keeps every item EXCEPT the one you want to delete
+    servers_list = [server for server in servers_list if server.get("server_id") != server_id]
+
+    # If the list length didn't change, the ID doesn't exist
+    if len(servers_list) == initial_length:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Server with ID '{server_id}' not found."
+        )
+
+    # Write the shortened list back to the JSON file
+    with open(FILE_PATH, "w") as file:
+        json.dump(servers_list, file, indent=4)
+
+    return {"message": f"Server '{server_id}' successfully deleted."}

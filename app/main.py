@@ -79,6 +79,17 @@ async def get_server():
         data = json.load(file)
     return data
 
+@app.get('/api/servers/{server_id}',status_code=status.HTTP_200_OK)
+async def get_server(server_id:str):
+    with open(FILE_PATH, "r") as file:
+        servers_list = json.load(file)
+    target_server = None
+    for server in servers_list:
+        if server.get("server_id") == server_id:
+            target_server = server
+            break
+    return target_server
+
 @app.post("/api/servers", status_code=status.HTTP_201_CREATED)
 async def create_server(payload: CreateServer):
     # Create dummy data for the new server

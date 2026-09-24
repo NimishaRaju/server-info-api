@@ -3,36 +3,55 @@ import os
 import json
 import uuid
 import threading
+import tempfile
 from datetime import datetime
 
 
 file_lock = threading.Lock()
 
 class ServerService:
-    def __init__(self, file_path: str):
-        self.file_path = file_path
-        self._ensure_file_exists()
-
     def _ensure_file_exists(self):
-        if not os.path.exists(self.file_path):
-            with file_lock:
-                with open(self.file_path, "w") as file:
-                    json.dump([], file)
+        """Safely initializes an empty JSON array if the file doesn't exist."""
+        with file_lock:
+            if not os.path.exists(self.file_path):
+                try:
+                    with open(self.file_path, "w", encoding="utf-8") as file:
+                        json.dump([], file)
+                except (OSError, IOError) as e:
+                    raise RuntimeError(f"Failed to initialize database file: {e}")
 
     def _read_file(self) -> list:
-        if not os.path.exists(self.file_path):
-            return []
-        with open(self.file_path, "r") as file:
+        """Thread-safe read that catches file-system shifts and parsing errors."""
+        with file_lock:  # CRITICAL: Lock added to prevent reading half-written data
+            if not os.path.exists(self.file_path):
+                return []
             try:
-                servers_list = json.load(file)
-                return servers_list if isinstance(servers_list, list) else []
-            except json.JSONDecodeError:
+                with open(self.file_path, "r", encoding="utf-8") as file:
+                    servers_list = json.load(file)
+                    return servers_list if isinstance(servers_list, list) else []
+            except (json.JSONDecodeError, OSError, IOError):
+                # Logger note: Log this error instead of failing silently in production
                 return []
 
     def _write_file(self, data: list):
+        """Thread-safe, atomic write using a temp file to prevent data corruption."""
         with file_lock:
-            with open(self.file_path, "w") as file:
-                json.dump(data, file, indent=4)
+            dir_name = os.path.dirname(os.path.abspath(self.file_path))
+            
+            try:
+                # 1. Write to a temporary file in the same directory
+                with tempfile.NamedTemporaryFile("w", dir=dir_name, delete=False, encoding="utf-8") as temp_file:
+                    json.dump(data, temp_file, indent=4)
+                    temp_file_path = temp_file.name
+
+                # 2. Atomically overwrite the destination file
+                os.replace(temp_file_path, self.file_path)
+                
+            except (OSError, IOError) as e:
+                # Clean up temp file if something went wrong before os.replace
+                if 'temp_file_path' in locals() and os.path.exists(temp_file_path):
+                    os.remove(temp_file_path)
+                raise RuntimeError(f"Database write failed. Data preserved in-memory: {e}")
 
     def _deep_merge(self, target_dict: dict, source_dict: dict) -> dict:
         for key, value in source_dict.items():
@@ -52,8 +71,15 @@ class ServerService:
         return next((srv for srv in servers_list if srv.get("server_id") == server_id), None)
 
     def create_server(self, server_name: str) -> dict:
+        clean_name=server_name.strip()
+        if not clean_name:
+            raise ValueError("Server name cannot be empty and consist soley of spaces")
         servers_list = self._read_file()
-        
+
+        for srv in servers_list:
+            if srv.get("server_name", "").lower() == clean_name.lower():
+                raise ValueError(f"A server named '{clean_name}' already exists.")
+            
         new_server = {
             "server_name": server_name,
             "server_id": f"srv-{uuid.uuid4()}",

@@ -16,7 +16,11 @@ def health():
 
 @app.get('/api/servers')
 async def get_server(server_service:ServerService=Depends(get_server_service)):
-    return server_service.get_all_servers()
+    try:
+        return server_service.get_all_servers()
+    except Exception as e:
+        logger.error(f"Failed to read servers data: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error reading data file.")
 
 @app.get('/api/servers/{server_id}',status_code=status.HTTP_200_OK)
 async def get_server(server_id:str,server_service:ServerService=Depends(get_server_service)):
@@ -27,13 +31,17 @@ async def get_server(server_id:str,server_service:ServerService=Depends(get_serv
 
 @app.post("/api/servers", status_code=status.HTTP_201_CREATED)
 async def create_server(payload: CreateServer,server_service:ServerService=Depends(get_server_service)):
-    new_server=server_service.create_server(payload.server_name)
-    # Return a custom success response to the client
-    return {
-        "status": "success",
-        "message": f"Server '{payload.server_name}' successfully added to database.",
-        "server_id": new_server["server_id"]
-    }
+    try:
+        new_server=server_service.create_server(payload.server_name)
+        # Return a custom success response to the client
+        return {
+            "status": "success",
+            "message": f"Server '{payload.server_name}' successfully added to database.",
+            "server_id": new_server["server_id"]
+        }
+    except ValueError as e:
+         raise HTTPException(status_code=400, detail=str(e))
+         
 
 @app.patch("/api/servers/{server_id}",status_code=status.HTTP_200_OK)
 def update_server(server_id: str,payload:ServerMetricPatchRequest,server_service:ServerService=Depends(get_server_service)):
@@ -43,6 +51,9 @@ def update_server(server_id: str,payload:ServerMetricPatchRequest,server_service
     """
     # Extract ONLY the fields the client explicitly sent
     update_data = payload.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No valid update fields were provided in the request body.")
+
     updated_fields = server_service.update_server(server_id, update_data)
     if updated_fields is None:
             raise HTTPException(

@@ -10,6 +10,9 @@ from datetime import datetime
 file_lock = threading.Lock()
 
 class ServerService:
+    def __init__(self, file_path: str):
+        self.file_path = file_path
+        self._ensure_file_exists()
     def _ensure_file_exists(self):
         """Safely initializes an empty JSON array if the file doesn't exist."""
         with file_lock:

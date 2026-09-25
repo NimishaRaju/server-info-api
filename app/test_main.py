@@ -1,7 +1,27 @@
 import pytest
 from fastapi.testclient import TestClient
+
+# 1. Cleanly import the app and the factory function directly
 from main import app 
+from dependencies import get_server_service
+from services import ServerService
 client=TestClient(app)
+
+@pytest.fixture(autouse=True)
+def use_test_json_file(tmp_path):
+    """Safely overrides your factory function to point to a real, isolated temporary file."""
+    test_file_path = str(tmp_path / "test_database.json")
+    
+    # Instantiate a clean, genuine instance with our temporary path
+    real_test_service = ServerService(file_path=test_file_path)
+    
+    # We override BOTH the class reference and the function to trick FastAPI's type validator
+    app.dependency_overrides[ServerService] = lambda: real_test_service
+    app.dependency_overrides[get_server_service] = lambda: real_test_service
+    
+    yield
+    app.dependency_overrides.clear()
+
 
 def test_health_endpoint():
     response = client.get("/health")
@@ -16,7 +36,7 @@ def test_get_all_servers():
     assert isinstance(response.json(), list)
 
 def test_get_server_by_id():
-    response = client.get("/api/server/not-an-id-present")
+    response = client.get("/api/servers/not-an-id-present")
     assert response.status_code == 404
     assert response.json()["detail"] == "Server with ID 'not-an-id-present' not found."
 
@@ -37,7 +57,16 @@ def test_create_server():
 def test_update_server_not_found():
     """Test updating a fake server returns a 404"""
     # Send metric changes to a server ID that doesn't exist
-    payload = {"cpu_usage": 45.5, "memory_usage": 60.2}
+    payload = {
+        "metrics": {
+            "cpu_health": {
+                "utilization_percentage": 45.5
+            },
+            "memory_health": {
+                "used_gb": 60.2
+            }
+        }
+    }
     
     response = client.patch("/api/servers/not-an-id-present", json=payload)
     
